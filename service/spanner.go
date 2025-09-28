@@ -10,60 +10,6 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-func getSingerList(db string) ([]entity.Singer, error) {
-	ctx := context.Background()
-
-	fmt.Printf("1\n")
-
-	client, err := spanner.NewClient(ctx, db)
-	if err != nil {
-
-		fmt.Printf("%s\n", err)
-		return []entity.Singer{}, err
-	}
-	defer client.Close()
-	fmt.Printf("2\n")
-
-	var list []entity.Singer
-	_, err = client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
-		fmt.Printf("2_2\n")
-		stmt := spanner.Statement{
-			SQL: `SELECT SingerId, FirstName, LastName, SingerInfo FROM Singers`,
-		}
-		fmt.Printf("3\n")
-		iter := txn.Query(ctx, stmt)
-		defer iter.Stop()
-		for {
-			row, err := iter.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				fmt.Printf("error1 %s", err)
-				return err
-			}
-			singer := entity.Singer{}
-			if err := row.Columns(&singer.SingerId, &singer.FirstName, &singer.LastName, &singer.SingerInfo); err != nil {
-				fmt.Printf("error2 %s", err)
-				return err
-			}
-			fmt.Printf("%d %s %s\n", singer.SingerId, singer.FirstName, singer.LastName)
-			list = append(list, singer)
-		}
-
-		fmt.Printf("4\n")
-		if err != nil {
-			fmt.Printf("error %s", err)
-			return err
-		}
-		fmt.Printf("5\n")
-		// fmt.Printf("%d record(s) inserted.\n", rows.RowCount)
-		return err
-	})
-	fmt.Printf("6\n")
-	return list, nil
-}
-
 func writeUsingDML(db string) error {
 	ctx := context.Background()
 
@@ -119,7 +65,13 @@ func getSandboxList(db string) ([]entity.Sandbox, error) {
 		fmt.Printf("2_2\n")
 		stmt := spanner.Statement{
 			SQL: `SELECT 
-				IntCl, StrCL, ByteCl, BoolCl, DateCl, TimeStampCl, JsonCl
+				IntCl,
+				StrCL, 
+				ByteCl,
+				BoolCl, 
+				DateCl, 
+				TimeStampCl, 
+				JsonCl
 			FROM 
 				Sandbox`,
 		}
@@ -158,7 +110,6 @@ func getSandboxList(db string) ([]entity.Sandbox, error) {
 			return err
 		}
 		fmt.Printf("5\n")
-		// fmt.Printf("%d record(s) inserted.\n", rows.RowCount)
 		return err
 	})
 	fmt.Printf("6\n")
