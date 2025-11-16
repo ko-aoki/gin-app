@@ -1,8 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"html/template"
+	"strings"
 
 	"gin-app/entity"
 
@@ -10,19 +13,16 @@ import (
 	"google.golang.org/api/iterator"
 )
 
-func writeUsingDML(db string) error {
+const DB_PATH = "projects/emu/instances/emu/databases/emu"
+
+func writeUsingDML() error {
 	ctx := context.Background()
 
-	fmt.Printf("1\n")
-
-	client, err := spanner.NewClient(ctx, db)
+	client, err := spanner.NewClient(ctx, DB_PATH)
 	if err != nil {
-
-		fmt.Printf("%s\n", err)
 		return err
 	}
 	defer client.Close()
-	fmt.Printf("2\n")
 
 	_, err = client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
 		stmt := spanner.Statement{
@@ -32,9 +32,7 @@ func writeUsingDML(db string) error {
 				(14, 'Jacqueline', 'Long'),
 				(15, 'Dylan', 'Shaw')`,
 		}
-		fmt.Printf("3\n")
 		rowCount, err := txn.Update(ctx, stmt)
-		fmt.Printf("4\n")
 		if err != nil {
 			fmt.Printf("%s", err)
 			return err
@@ -46,36 +44,81 @@ func writeUsingDML(db string) error {
 	return err
 }
 
-func getSandboxList(db string) ([]entity.Sandbox, error) {
+func getSandboxList(param map[string]interface{}) ([]entity.Sandbox, error) {
 	ctx := context.Background()
 
-	fmt.Printf("1\n")
-
-	client, err := spanner.NewClient(ctx, db)
+	client, err := spanner.NewClient(ctx, DB_PATH)
 	if err != nil {
-
-		fmt.Printf("%s\n", err)
 		return []entity.Sandbox{}, err
 	}
 	defer client.Close()
-	fmt.Printf("2\n")
+
+	// 1. テンプレート実行用のマップを作成
+	// 元のparamのコピーと、Cndフラグを格納する
+	templateParams := make(map[string]interface{}, len(param)*2)
+
+	// 2. paramの内容を templateParams にコピーし、Cndフラグを追加
+	// KeyClはフィルタリングに使われないと仮定し、スキップ
+	for key, value := range param {
+		// 元のフィルタリング値をそのままコピー (SpannerのParamsとして使用される)
+		templateParams[key] = value
+
+		// Cndフラグを追加。値が存在するため常にtrue
+		cndKey := "Cnd" + key
+		templateParams[cndKey] = true
+	}
+
+	tmpl := template.Must(template.New("getSandboxList").Parse(
+		`SELECT 
+		KeyCl,
+		IntCl,
+		StrCL, 
+		ByteCl,
+		BoolCl, 
+		DateCl, 
+		TimeStampCl, 
+		JsonCl
+	FROM 
+		Sandbox
+	WHERE
+		1 = 1
+	{{ if .CndIntCl }}
+		AND
+		IntCl = @IntCl
+	{{ end }}
+	{{ if .CndStrCl }}
+		AND
+		StrCL = @StrCL
+	{{ end }}
+	{{ if .CndByteCl }}
+		AND
+		ByteCL = @ByteCL
+	{{ end }}
+	{{ if .CndBoolCl }}
+		AND
+		BoolCL = @BoolCL
+	{{ end }}
+	{{ if .CndDateCl }}
+		AND
+		DateCL = @DateCL
+	{{ end }}
+	{{ if .CndTimeStampCl }}
+		AND
+		TimeStampCl = @TimeStampCl
+	{{ end }}
+	`))
+
+	var sqlBuffer bytes.Buffer
+	tmpl.Execute(&sqlBuffer, templateParams)
+	sqlString := strings.TrimSpace(sqlBuffer.String())
+	fmt.Printf("sql: %s\n", sqlString)
 
 	var list []entity.Sandbox
 	_, err = client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
-		fmt.Printf("2_2\n")
 		stmt := spanner.Statement{
-			SQL: `SELECT 
-				IntCl,
-				StrCL, 
-				ByteCl,
-				BoolCl, 
-				DateCl, 
-				TimeStampCl, 
-				JsonCl
-			FROM 
-				Sandbox`,
+			SQL:    sqlBuffer.String(),
+			Params: param,
 		}
-		fmt.Printf("3\n")
 		iter := txn.Query(ctx, stmt)
 		defer iter.Stop()
 		for {
@@ -84,11 +127,11 @@ func getSandboxList(db string) ([]entity.Sandbox, error) {
 				break
 			}
 			if err != nil {
-				fmt.Printf("error1 %s", err)
 				return err
 			}
 			entity := entity.Sandbox{}
 			if err := row.Columns(
+				&entity.KeyCl,
 				&entity.IntCl,
 				&entity.StrCl,
 				&entity.ByteCl,
@@ -96,22 +139,17 @@ func getSandboxList(db string) ([]entity.Sandbox, error) {
 				&entity.DateCl,
 				&entity.TimeStampCl,
 				&entity.JsonCl); err != nil {
-				fmt.Printf("error2 %s", err)
 				return err
 			}
 			fmt.Printf("%d %s %s %v %s %s %s\n",
 				entity.IntCl, entity.StrCl, entity.ByteCl, entity.BoolCl, entity.DateCl, entity.TimeStampCl, entity.JsonCl)
 			list = append(list, entity)
 		}
-
-		fmt.Printf("4\n")
 		if err != nil {
 			fmt.Printf("error %s", err)
 			return err
 		}
-		fmt.Printf("5\n")
 		return err
 	})
-	fmt.Printf("6\n")
 	return list, nil
 }
