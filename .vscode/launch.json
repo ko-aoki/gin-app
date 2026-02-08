@@ -15,6 +15,7 @@
                 "SPANNER_EMULATOR_HOST":"localhost:9010",
                 "autoConfigEmulator":"true",
                 "GCLOUD_PROJECT":"emu",
+                "program": "example.go",
             }
         }
     ]

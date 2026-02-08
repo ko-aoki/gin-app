@@ -1,4 +1,4 @@
-package service
+package db
 
 import (
 	"bytes"
@@ -44,7 +44,7 @@ func writeUsingDML() error {
 	return err
 }
 
-func getSandboxList(param map[string]interface{}) ([]entity.Sandbox, error) {
+func GetSandboxList(param map[string]interface{}) ([]entity.Sandbox, error) {
 	ctx := context.Background()
 
 	client, err := spanner.NewClient(ctx, DB_PATH)
@@ -58,7 +58,6 @@ func getSandboxList(param map[string]interface{}) ([]entity.Sandbox, error) {
 	templateParams := make(map[string]interface{}, len(param)*2)
 
 	// 2. paramの内容を templateParams にコピーし、Cndフラグを追加
-	// KeyClはフィルタリングに使われないと仮定し、スキップ
 	for key, value := range param {
 		// 元のフィルタリング値をそのままコピー (SpannerのParamsとして使用される)
 		templateParams[key] = value
@@ -82,6 +81,10 @@ func getSandboxList(param map[string]interface{}) ([]entity.Sandbox, error) {
 		Sandbox
 	WHERE
 		1 = 1
+	{{ if .CndKeyCl }}
+		AND
+		KeyCl = @KeyCl
+	{{ end }}
 	{{ if .CndIntCl }}
 		AND
 		IntCl = @IntCl

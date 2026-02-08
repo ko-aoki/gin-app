@@ -1,4 +1,4 @@
-package service
+package db
 
 import (
 	"context"
@@ -158,6 +158,12 @@ func TestGetSandboxList(t *testing.T) {
 		wantCount int
 	}{
 		{
+			name:      "KeyClでフィルタリング (1)",
+			params:    map[string]interface{}{"KeyCl": int64(1)},
+			wantKeyCl: 1,
+			wantCount: 1,
+		},
+		{
 			name:      "IntClでフィルタリング (1)",
 			params:    map[string]interface{}{"IntCl": int64(1)},
 			wantKeyCl: 1,
@@ -209,7 +215,7 @@ func TestGetSandboxList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			entityList, err := getSandboxList(tt.params)
+			entityList, err := GetSandboxList(tt.params)
 			if err != nil {
 				t.Fatalf("getSandboxList failed: %v", err)
 			}
